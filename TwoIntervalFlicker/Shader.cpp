@@ -1,5 +1,6 @@
 #include "shader.h"
 #include <iostream>
+#include <Windows.h>
 
 bool Shader::load(const std::string& vertSrc, const std::string& fragSrc) {
     GLuint vert = compile(GL_VERTEX_SHADER, vertSrc);
@@ -34,6 +35,16 @@ void Shader::use() const {
 
 void Shader::setInt(const std::string& name, int value) const {
     glUniform1i(glGetUniformLocation(id, name.c_str()), value);
+}
+
+void Shader::setBool(const std::string& name, bool value) const {
+    //glUniform1i(glGetUniformLocation(id, name.c_str()), (int)value);
+    GLint loc = glGetUniformLocation(id, name.c_str());
+    if (loc == -1) {
+        OutputDebugString(L"shader not found");
+        return;
+    }
+    glUniform1i(loc, (int)value);
 }
 
 Shader::~Shader() {

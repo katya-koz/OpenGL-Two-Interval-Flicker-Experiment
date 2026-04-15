@@ -13,6 +13,7 @@ struct ImagePaths {
     fs::path L_dec; // <name>_L_dec.<ext>
     fs::path R_orig; // <name>_R_orig.<ext>
     fs::path R_dec; // <name>_R_dec.<ext>
+    int viewingMode; //0 = stereo   1 = left only   2 = right only
     int flickerIndex = 0; // this tracks whether the first or the second image will be flickered.
 };
 

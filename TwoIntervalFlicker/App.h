@@ -57,20 +57,7 @@ private:
 
     std::vector<TrialResult> m_results;
 
-    GLuint m_texture = 0; // current texture on screen
-
-    // need to load original and decompressed in order to flicker between them (without re-loading the images in every update tick)
-    GLuint m_texOrig = 0;
-    GLuint m_texDec = 0;
-    // double up, later for stereo mode.
-
-    // for instrucitons
-    GLuint m_texStart = 0;
-    GLuint m_texWaitResponse = 0;
-
-
-    /*
-     GLuint m_texture_L = 0; // current texture on screen (left)
+    GLuint m_texture_L = 0; // current texture on screen (left)
     GLuint m_texture_R = 0;
 
     // need to load original and decompressed in order to flicker between them (without re-loading the images in every update tick)
@@ -85,8 +72,7 @@ private:
     GLuint m_texWaitResponse_L = 0;
     GLuint m_texStart_R = 0;
     GLuint m_texWaitResponse_R = 0;
-    
-    */
+
 
     GLuint m_quadVAO = 0;
     GLuint m_quadVBO = 0;
@@ -99,7 +85,8 @@ private:
     void advancePhase();
     void loadInstructionsTextures(); // load the response screen and instructions
 
-    void loadTextures(const fs::path& origImagePath, const fs::path& decImagePath);
+    void loadTextures(const ImagePaths paths);
+    void loadTexture(const std::string& path, GLuint textureID);
     void renderTexture();
     void recordResponse(int key);
     void printResults() const;

@@ -29,7 +29,6 @@ bool Config::load(const std::string& configPath) {
     if (!fs::exists(imageDirectory) || !fs::is_directory(imageDirectory)) {
         std::string msg = "[Config] Image directory not found: " + imageDirectory.string() + "";
         Utils::FatalError(msg);
-        //std::cerr << "[Config] Image directory not found: " << imageDirectory << "";
         return false;
     }
 
@@ -37,8 +36,11 @@ bool Config::load(const std::string& configPath) {
 
     for (const auto& trial : j.at("Trials")) {
         std::string name = trial.at("Image Name").get<std::string>();
+        int viewingMode = trial.at("Viewing Mode").get<int>();
 
         ImagePaths img;
+        img.viewingMode = viewingMode;
+
         img.name = name;
         img.L_orig = findImage(name, "_L_orig");
         img.L_dec = findImage(name, "_L_dec");

@@ -6,12 +6,13 @@ static const std::string VERT_SRC = R"(
 #version 460 core
 layout (location = 0) in vec2 aPos;
 layout (location = 1) in vec2 aTexCoord;
+uniform bool uMirror;
 
 out vec2 TexCoord;
 
 void main() {
     gl_Position = vec4(aPos, 0.0, 1.0);
-    TexCoord    = aTexCoord;
+    TexCoord = uMirror ? vec2(1.0 - aTexCoord.x, aTexCoord.y) : aTexCoord; 
 }
 )";
 
@@ -48,8 +49,8 @@ App::~App() {
     //if (m_texStart) glDeleteTextures(1, &m_texStart);
     //if (m_texWaitResponse) glDeleteTextures(1, &m_texWaitResponse);
 
-    GLuint textures[] = { m_texOrig, m_texDec, m_texStart, m_texWaitResponse }; // textures can be batch deleted
-    glDeleteTextures(4, textures);
+    GLuint textures[] = { m_texOrig_L, m_texDec_L, m_texStart_L, m_texWaitResponse_L, m_texOrig_R, m_texDec_R, m_texStart_R, m_texWaitResponse_R }; // textures can be batch deleted
+    glDeleteTextures(8, textures);
 
     if (m_quadVAO) glDeleteVertexArrays(1, &m_quadVAO);
     if (m_quadVBO) glDeleteBuffers(1, &m_quadVBO);
@@ -87,8 +88,6 @@ bool App::init(const std::string& configPath) {
     glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
     glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
-    
-    // GLFW can't technically do a 2 monitor full screen. a work around would be to create a double wide window w/ no decorations
     m_window = glfwCreateWindow(m_width * 2, m_height, "Flicker Experiment", nullptr, nullptr);
 
 
@@ -119,14 +118,18 @@ bool App::init(const std::string& configPath) {
 
 
     //allocate texture slots
-    glGenTextures(1, &m_texOrig);
-    glGenTextures(1, &m_texDec);
-    glGenTextures(1, &m_texStart);
-    glGenTextures(1, &m_texWaitResponse);
+    glGenTextures(1, &m_texOrig_L);
+    glGenTextures(1, &m_texDec_L);
+    glGenTextures(1, &m_texStart_L);
+    glGenTextures(1, &m_texWaitResponse_L);
+    glGenTextures(1, &m_texOrig_R);
+    glGenTextures(1, &m_texDec_R);
+    glGenTextures(1, &m_texStart_R);
+    glGenTextures(1, &m_texWaitResponse_R);
 
     loadInstructionsTextures();
 
-    m_texture = m_texStart;
+    m_texture_L = m_texStart_L;
     m_phase = TrialPhase::StartInstructions;
     //// load the first image
     //m_config.trials[m_trialIndex].flickerIndex == 0 ? m_phase = TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
@@ -186,7 +189,8 @@ void App::update() {
 
     // show original, no flicker
     if ((m_phase == TrialPhase::ShowOriginal)) {
-        m_texture = m_texOrig;
+        m_texture_L = m_texOrig_L;
+        m_texture_R = m_texOrig_R;
         //loadTexture(img.L_orig);
         if (elapsed >= timeoutDuration) {
              advancePhase();
@@ -211,7 +215,8 @@ void App::update() {
         if (now - m_flickerLast >= flickerInterval) {
             m_flickerLast = now;
             m_flickerOnOrig = !m_flickerOnOrig;
-            m_texture = m_flickerOnOrig ? m_texOrig : m_texDec;
+            m_texture_L = m_flickerOnOrig ? m_texOrig_L : m_texDec_L;
+            m_texture_R = m_flickerOnOrig ? m_texOrig_R : m_texDec_R;
         }
 
     }
@@ -230,13 +235,15 @@ void App::render() {
 
     else if (m_phase == TrialPhase::StartInstructions)
     {
-        m_texture = m_texStart;
+        m_texture_L = m_texStart_L;
+        m_texture_R = m_texStart_R;
         renderTexture();
     }
 
     else if (m_phase == TrialPhase::WaitForResponse)
     {
-        m_texture = m_texWaitResponse;
+        m_texture_L = m_texWaitResponse_L;
+        m_texture_R = m_texWaitResponse_R;
         renderTexture();
     }
 
@@ -247,17 +254,24 @@ void App::render() {
 
 void App::renderTexture() {
     m_shader.use();
-    m_shader.setInt("uTexture", 0); // sampler uses texture unit 0
+    m_shader.setInt("uTexture", 0);
+    m_shader.setBool("uMirror", true); // mirror 
 
     glActiveTexture(GL_TEXTURE0);
-
-    glBindTexture(GL_TEXTURE_2D, m_texture);
-
-
     glBindVertexArray(m_quadVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindVertexArray(0);
 
+    // left monitor
+    glViewport(0, 0, m_width, m_height);
+    glBindTexture(GL_TEXTURE_2D, m_texture_L);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // right monitor (assuming same width as left)
+    glViewport(m_width, 0, m_width, m_height);
+    glBindTexture(GL_TEXTURE_2D, m_texture_R);
+    
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
@@ -288,7 +302,7 @@ void App::advancePhase() {
             m_phaseStart = now;
         }
         //load the next 2 images in the trial
-        loadTextures(m_config.trials[m_trialIndex].L_orig, m_config.trials[m_trialIndex].L_dec);
+        loadTextures(m_config.trials[m_trialIndex]);
     }
     else if (m_phase == TrialPhase::ShowFlicker) {
         if (m_config.trials[m_trialIndex].flickerIndex == 0) { // this is the first image, show wait screen next
@@ -322,105 +336,75 @@ void App::recordResponse(int key) {
     else {
         m_phase =  (m_config.trials[m_trialIndex].flickerIndex) == 0 ? TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
         m_phaseStart = glfwGetTime();
-        loadTextures(m_config.trials[m_trialIndex].L_orig, m_config.trials[m_trialIndex].L_dec);
+        loadTextures(m_config.trials[m_trialIndex]);
     }
 }
 
 void App::loadInstructionsTextures() {
    
+    loadTexture("responsescreen_L.ppm", m_texWaitResponse_L);
+    loadTexture("startscreen_L.ppm", m_texStart_L);
 
-    cv::Mat responseImg = cv::imread("responsescreen_L.ppm", cv::IMREAD_COLOR);
-    if (responseImg.empty()) {
-        Utils::FatalError("[App] Failed to load image: responsescreen_L.ppm");
-        return;
-    }
-
-    cv::cvtColor(responseImg, responseImg, cv::COLOR_BGR2RGB);
-    cv::flip(responseImg, responseImg, 0);  // OpenGL origin is bottom-left
-
-    glBindTexture(GL_TEXTURE_2D, m_texWaitResponse);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-        responseImg.cols, responseImg.rows,
-        0, GL_RGB, GL_UNSIGNED_BYTE, responseImg.data);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    // start instructions
-    cv::Mat startImg = cv::imread("startscreen_L.ppm", cv::IMREAD_COLOR);
-    if (startImg.empty()) {
-        Utils::FatalError("[App] Failed to load image: startscreen_L.ppm");
-        return;
-    }
-
-    cv::cvtColor(startImg, startImg, cv::COLOR_BGR2RGB);
-    cv::flip(startImg, startImg, 0);  // OpenGL origin is bottom-left
-
-    glBindTexture(GL_TEXTURE_2D, m_texStart);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-        startImg.cols, startImg.rows,
-        0, GL_RGB, GL_UNSIGNED_BYTE, startImg.data);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
+    loadTexture("responsescreen_R.ppm", m_texWaitResponse_R);
+    loadTexture("startscreen_R.ppm", m_texStart_R);
 
 }
 
-// loads the original and dec textures 
-void App::loadTextures(const fs::path& origImagePath, const fs::path& decImagePath) {
-    if (origImagePath.empty() || decImagePath.empty()) {
-        Utils::FatalError("[App] Image path is empty.");
+// loads the original and dec textures, based on stereo settings in config
+// 0 = stereo
+// 1 = left only
+// 2 = right only
+
+void App::loadTextures(const ImagePaths img) {
+
+    switch (img.viewingMode) {
+
+    case 0: // stereo
+        loadTexture(img.L_orig.string(), m_texOrig_L);
+        loadTexture(img.R_orig.string(), m_texOrig_R);
+
+        loadTexture(img.L_dec.string(), m_texDec_L);
+        loadTexture(img.R_dec.string(), m_texDec_R);
+        break;
+    case 1: // left only
+        loadTexture(img.L_orig.string(), m_texOrig_L);
+        loadTexture(img.L_orig.string(), m_texOrig_R);
+
+        loadTexture(img.L_dec.string(), m_texDec_L);
+        loadTexture(img.L_dec.string(), m_texDec_R);
+
+        break;
+    case 2: // right only
+        loadTexture(img.R_orig.string(), m_texOrig_L);
+        loadTexture(img.R_orig.string(), m_texOrig_R);
+
+        loadTexture(img.R_dec.string(), m_texDec_L);
+        loadTexture(img.R_dec.string(), m_texDec_R);
+        break;
+
+    default:
+        Utils::FatalError("[App] viewing mode is not valid. Must be 0, 1, or 2. Is : " + img.viewingMode);
+    }
+}
+
+// helper to load texture into id
+void App::loadTexture(const std::string& path, GLuint textureID) {
+    cv::Mat img = cv::imread(path, cv::IMREAD_COLOR);
+    if (img.empty()) {
+        Utils::FatalError("[App] Failed to load image: " + path);
         return;
     }
 
-    cv::Mat imgOrig = cv::imread(origImagePath.string(), cv::IMREAD_COLOR);
-    if (imgOrig.empty()) {
-        Utils::FatalError("[App] Failed to load image: " + origImagePath.string());
-        return;
-    }
+    cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
+    cv::flip(img, img, 0);
 
-    cv::cvtColor(imgOrig, imgOrig, cv::COLOR_BGR2RGB);
-    cv::flip(imgOrig, imgOrig, 0);  // OpenGL origin is bottom-left
-
-    glBindTexture(GL_TEXTURE_2D, m_texOrig);
+    glBindTexture(GL_TEXTURE_2D, textureID);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-        imgOrig.cols, imgOrig.rows,
-        0, GL_RGB, GL_UNSIGNED_BYTE, imgOrig.data);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-
-    cv::Mat imgDec = cv::imread(decImagePath.string(), cv::IMREAD_COLOR);
-    if (imgDec.empty()) {
-        Utils::FatalError("[App] Failed to load image: " + decImagePath.string());
-        return;
-    }
-
-    cv::cvtColor(imgDec, imgDec, cv::COLOR_BGR2RGB);
-    cv::flip(imgDec, imgDec, 0);  // OpenGL origin is bottom-left
-
-    glBindTexture(GL_TEXTURE_2D, m_texDec);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-        imgDec.cols, imgDec.rows,
-        0, GL_RGB, GL_UNSIGNED_BYTE, imgDec.data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.cols, img.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, img.data);
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
@@ -461,8 +445,7 @@ void App::keyCallback(GLFWwindow* window, int key, int scancode, int action, int
             app->m_trialIndex = 0;
 
             const auto& img = app->m_config.trials[0];
-            app->loadTextures(img.L_orig, img.L_dec);
-
+            app->loadTextures(img);
 
             app->m_phase = (img.flickerIndex == 0) ? TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
             app->m_phaseStart = glfwGetTime();

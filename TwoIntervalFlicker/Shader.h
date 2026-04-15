@@ -10,6 +10,7 @@ public:
     bool load(const std::string& vertSrc, const std::string& fragSrc);
     void use() const;
     void setInt(const std::string& name, int value) const;
+    void setBool(const std::string& name, bool value) const;
 
     ~Shader();
 
