@@ -66,6 +66,10 @@ bool App::init(const std::string& configPath) {
         return false;
     }
 
+    timeoutDuration = m_config.imageTime;
+    flickerRate = m_config.flickerRate;
+    waitTimeoutDuration = m_config.waitTime;
+
     // randomize order of trials + flickers
     Utils::ShuffleTrials(m_config.trials);
     Utils::ShuffleFlickers(m_config.trials);
@@ -269,7 +273,12 @@ void App::render() {
         renderTexture();
     }
 
-    // between trials: black screen
+    // between trials: grey screen
+
+    else if (m_phase == TrialPhase::ShowWaitScreen) {
+        glClearColor(0.39f, 0.39f, 0.39f, 1.0f); // grey
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
 }
 
 // renderTexture — bind shader + quad + texture, draw 6 verts

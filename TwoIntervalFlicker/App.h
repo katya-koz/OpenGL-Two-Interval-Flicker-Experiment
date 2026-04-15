@@ -36,14 +36,15 @@ public:
     bool init(const std::string& configPath);
     void run();
 
+    // can be edited in config
     //how long each image is shown before advancing ( in seconds)
-    double timeoutDuration = 2.0;
+    double timeoutDuration;
 
     //how long in between the images (black screen, in seconds)
-    double waitTimeoutDuration = 1.0;
+    double waitTimeoutDuration;
 
     // image flicker rate in Hz — how many times per second the image swaps (e.g. 10.0 = 10 swaps/sec)
-    double flickerRate = 10.0;
+    double flickerRate;
 
 private:
     int m_width;

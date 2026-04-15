@@ -24,6 +24,10 @@ struct Config {
     fs::path imageDirectory;
     std::vector<ImagePaths> trials;
     fs::path outputDirectory;
+    // defaults
+    double flickerRate = 10.0;  // hz
+    double waitTime = 2.0; // time between images
+    double imageTime = 2.0; // time images are shown
 
     // load and parse json config file
     bool load(const std::string& configPath);

@@ -28,9 +28,18 @@ bool Config::load(const std::string& configPath) {
     participantGender = j.at("Participant Gender").get<std::string>();
     imageDirectory = j.at("Image Directory").get<std::string>();
 
-    // optional parameter
+    // optional parameters
     if (j.contains("Output Directory")) {
         outputDirectory = j["Output Directory"].get<std::string>();
+    }
+    if (j.contains("Flicker Rate (Hz)")) {
+        flickerRate = j["Flicker Rate (Hz)"].get<double>();
+    }
+    if (j.contains("Wait Time (s)")) {
+        waitTime = j["Wait Time (s)"].get<double>();
+    }
+    if (j.contains("Image Time (s)")) {
+        imageTime = j["Image Time (s)"].get<double>();
     }
 
     if (!fs::exists(imageDirectory) || !fs::is_directory(imageDirectory)) {
