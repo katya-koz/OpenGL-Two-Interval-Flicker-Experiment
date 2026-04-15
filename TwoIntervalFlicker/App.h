@@ -42,10 +42,13 @@ public:
     double flickerRate = 10.0;
 
 private:
-    int m_width;
-    int m_height;
+    int m_width_L;
+    int m_height_L;
+    int m_width_R;
+    int m_height_R;
     std::string m_title;
-    GLFWwindow* m_window = nullptr;
+    GLFWwindow* m_window_L = nullptr;
+    GLFWwindow* m_window_R = nullptr;
     Config m_config;
 
     int  m_trialIndex = 0;
@@ -71,6 +74,25 @@ private:
     GLuint m_quadVAO = 0;
     GLuint m_quadVBO = 0;
     Shader m_shader;
+
+    /*
+      GLuint m_texture_L = 0; // current texture on screen (left)
+    GLuint m_texture_R = 0;
+
+    // need to load original and decompressed in order to flicker between them (without re-loading the images in every update tick)
+    GLuint m_texOrig_L = 0;
+    GLuint m_texDec_L = 0;
+    GLuint m_texOrig_R = 0;
+    GLuint m_texDec_R = 0;
+    // double up, later for stereo mode.
+
+    // for instrucitons
+    GLuint m_texStart_L = 0;
+    GLuint m_texWaitResponse_L = 0;
+    GLuint m_texStart_R = 0;
+    GLuint m_texWaitResponse_R = 0;
+    
+    */
 
     void update();
     void render();

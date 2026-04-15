@@ -53,7 +53,8 @@ App::~App() {
 
     if (m_quadVAO) glDeleteVertexArrays(1, &m_quadVAO);
     if (m_quadVBO) glDeleteBuffers(1, &m_quadVBO);
-    glfwDestroyWindow(m_window);
+    glfwDestroyWindow(m_window_L);
+    glfwDestroyWindow(m_window_R);
     glfwTerminate();
 }
 
@@ -73,42 +74,102 @@ bool App::init(const std::string& configPath) {
         return false;
     }
 
+    ////////////////////////// break into function ///////////////////////////
+    GLFWmonitor* primary = glfwGetPrimaryMonitor(); // set primary to be left
+    
+    int count;
+    GLFWmonitor** monitors = glfwGetMonitors(&count);
 
-    GLFWmonitor* monitor = glfwGetPrimaryMonitor(); // assume the same resolution across the monitors
-    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+    // iterate through all monitors to find the 'other' monitor. this ensures that the primary monitor is the one labelled 1 on OS
+    GLFWmonitor* secondary = nullptr;
+    for (int i = 0; i < count; i++) {
+        if (monitors[i] != primary) {
+            secondary = monitors[i];
+            break;
+        }
+    }
 
-    m_width = mode->width;
-    m_height = mode->height;
+    // compute left vs right monitor
+    int x_p, y_p;
+    glfwGetMonitorPos(primary, &x_p, &y_p);
+
+    int x_s, y_s;
+    glfwGetMonitorPos(secondary, &x_s, &y_s);
+
+    GLFWmonitor* monitor_L;
+    GLFWmonitor* monitor_R;
+
+    if (x_p < x_s) {
+        monitor_L = primary; 
+        monitor_R = secondary;
+    }
+    else {
+        monitor_L = secondary;
+        monitor_R = primary;
+    }
+
+    const GLFWvidmode* mode_L = glfwGetVideoMode(monitor_L);
+    
+    /////// LEFT MONITOR
+    m_width_L = mode_L->width;
+    m_height_L = mode_L->height;
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+    glfwWindowHint(GLFW_REFRESH_RATE, mode_L->refreshRate);
     glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
     
-    // GLFW can't technically do a 2 monitor full screen. a work around would be to create a double wide window w/ no decorations
-    m_window = glfwCreateWindow(m_width * 2, m_height, "Flicker Experiment", nullptr, nullptr);
+    m_window_L = glfwCreateWindow(m_width_L, m_height_L, "Flicker Experiment [Left]", monitor_L, nullptr);
 
+    //////// RIGHT MONITOR
+    const GLFWvidmode* mode_R = glfwGetVideoMode(monitor_R);
+    m_width_R = mode_R->width;
+    m_height_R = mode_R->height;
 
-    if (!m_window) {
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    glfwWindowHint(GLFW_REFRESH_RATE, mode_R->refreshRate);
+    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+
+    m_window_R = glfwCreateWindow(m_width_R, m_height_R, "Flicker Experiment [Right]", monitor_R, m_window_L); // share GL context with left window
+
+    if (!m_window_L || !m_window_R) {
         glfwTerminate(); 
         Utils::FatalError("[App] Failed to create GLFW window");
         return false;
     }
 
-    glfwMakeContextCurrent(m_window);
-    glfwSetWindowUserPointer(m_window, this);
-    glfwSetFramebufferSizeCallback(m_window, framebufferSizeCallback);
-    glfwSetKeyCallback(m_window, keyCallback);
 
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    glfwMakeContextCurrent(m_window_L);
+   
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) { // load glad after context created
         Utils::FatalError("[App] Failed to initialize GLAD");
         return false;
     }
 
-    glViewport(0, 0, m_width, m_height);
+    glViewport(0, 0, m_width_L, m_height_L);
+
+    glfwMakeContextCurrent(m_window_R);
+    glViewport(0, 0, m_width_R, m_height_R);
+
+
+
+    glfwSetWindowUserPointer(m_window_L, this);
+    glfwSetFramebufferSizeCallback(m_window_L, framebufferSizeCallback);
+    glfwSetKeyCallback(m_window_L, keyCallback);
+
+  
+    
+
+
+    ////////////////////////// break into function ///////////////////////////
+
 
     //build shader
     if (!m_shader.load(VERT_SRC, FRAG_SRC)) return false;
@@ -165,10 +226,10 @@ bool App::initQuad() {
 // main loop
 
 void App::run() {
-    while (!glfwWindowShouldClose(m_window) && m_phase != TrialPhase::Done) {
+    while (!glfwWindowShouldClose(m_window_L) && m_phase != TrialPhase::Done) {
         update();
         render();
-        glfwSwapBuffers(m_window);
+        glfwSwapBuffers(m_window_L);
         glfwPollEvents();
     }
 
