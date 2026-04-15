@@ -80,6 +80,11 @@ private:
     GLuint m_texStart_R = 0;
     GLuint m_texWaitResponse_R = 0;
 
+    // crosshair (fixation point)
+    GLuint m_crosshairVAO = 0;
+    GLuint m_crosshairVBO = 0;
+    Shader m_crosshairShader;
+
 
     GLuint m_quadVAO = 0;
     GLuint m_quadVBO = 0;
@@ -91,12 +96,14 @@ private:
     void render();
 
     bool initQuad();
+    bool initCrosshair();
     void advancePhase();
     void loadInstructionsTextures(); // load the response screen and instructions
 
     void loadTextures(const ImagePaths paths);
     void loadTexture(const std::string& path, GLuint textureID);
     void renderTexture();
+    void renderCrosshair();
     void recordResponse(int key);
     void printResults() const;
 

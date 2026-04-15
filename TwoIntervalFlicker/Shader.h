@@ -11,7 +11,8 @@ public:
     void use() const;
     void setInt(const std::string& name, int value) const;
     void setBool(const std::string& name, bool value) const;
-
+    void setVec4(const std::string& name, float x, float y, float z, float w) const;
+    void setFloat(const std::string& name, float value) const;
     ~Shader();
 
 private:

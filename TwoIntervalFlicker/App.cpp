@@ -29,6 +29,50 @@ void main() {
 }
 )";
 
+static const std::string CROSSHAIR_VERT_SRC = R"(
+#version 460 core
+layout (location = 0) in vec2 aPos;
+
+uniform float uAspect;
+
+void main() {
+    gl_Position = vec4(aPos.x / uAspect, aPos.y, 0.0, 1.0);
+}
+)";
+
+static const std::string CROSSHAIR_FRAG_SRC = R"(
+#version 460 core
+out vec4 FragColor;
+
+uniform vec4 uColor;
+
+void main() {
+    FragColor = uColor;
+}
+)";
+float t = 0.001f; // thickness (represents half the thickness)
+float s = 0.03f; // size (distance from center to edge of crosshair)
+
+float crosshair[] = {
+    // horizontal rectangle
+    -s, -t,
+     s, -t,
+     s,  t,
+
+    -s, -t,
+     s,  t,
+    -s,  t,
+
+    // vertical rectangle
+    -t, -s,
+     t, -s,
+     t,  s,
+
+    -t, -s,
+     t,  s,
+    -t,  s,
+};
+
 
 static const float QUAD_VERTS[] = {
     // pos          // uv
@@ -55,8 +99,26 @@ App::~App() {
 
     if (m_quadVAO) glDeleteVertexArrays(1, &m_quadVAO);
     if (m_quadVBO) glDeleteBuffers(1, &m_quadVBO);
+    if (m_crosshairVAO) glDeleteVertexArrays(1, &m_crosshairVAO);
+    if (m_crosshairVBO) glDeleteBuffers(1, &m_crosshairVBO);
     glfwDestroyWindow(m_window);
     glfwTerminate();
+}
+
+bool App::initCrosshair() {
+    glGenVertexArrays(1, &m_crosshairVAO);
+    glGenBuffers(1, &m_crosshairVBO);
+
+    glBindVertexArray(m_crosshairVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_crosshairVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(crosshair), crosshair, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindVertexArray(0);
+
+    return m_crosshairShader.load(CROSSHAIR_VERT_SRC, CROSSHAIR_FRAG_SRC);
 }
 
 bool App::init(const std::string& configPath) {
@@ -126,7 +188,7 @@ bool App::init(const std::string& configPath) {
 
     //quad geometry building
     if (!initQuad()) return false;
-
+    if (!initCrosshair()) return false;
 
 
     //allocate texture slots
@@ -248,7 +310,27 @@ void App::update() {
     }
 }
 
+
+
+
 // rendering
+
+
+void App::renderCrosshair() {
+    m_crosshairShader.use();
+    m_crosshairShader.setVec4("uColor", 1.0f, 1.0f, 1.0f, 1.0f);
+    m_crosshairShader.setFloat("uAspect", (float)m_width / (float)m_height);
+
+    glBindVertexArray(m_crosshairVAO);
+
+    glViewport(0, 0, m_width, m_height);
+    glDrawArrays(GL_TRIANGLES, 0, 12);
+
+    glViewport(m_width, 0, m_width, m_height);
+    glDrawArrays(GL_TRIANGLES, 0, 12);
+
+    glBindVertexArray(0);
+}
 
 void App::render() {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -279,6 +361,10 @@ void App::render() {
         glClearColor(0.39f, 0.39f, 0.39f, 1.0f); // grey
         glClear(GL_COLOR_BUFFER_BIT);
     }
+
+    // render the fixation point (cross hair)
+    renderCrosshair();
+
 }
 
 // renderTexture — bind shader + quad + texture, draw 6 verts
