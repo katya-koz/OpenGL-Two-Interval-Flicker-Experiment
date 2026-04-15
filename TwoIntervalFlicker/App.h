@@ -6,6 +6,7 @@
 #include <string>
 #include "config.h"
 #include "shader.h"
+#include "csv.h"
 
 // Each trial steps through these phases in order
 enum class TrialPhase {
@@ -20,13 +21,16 @@ enum class TrialPhase {
 // result recorded for each trial
 struct TrialResult {
     std::string imageName;
-    int         responseKey;    // GLFW_KEY_LEFT or GLFW_KEY_RIGHT
-    double      reactionTime;   // seconds from start of WaitForResponse phase
+    int answer;    // first or second (0 , 1)
+    int actual; // first or second ( 0, 1)
+    double reactionTime;   // seconds from start of WaitForResponse phase
+    int index; // order of appearance
+    std::string viewingMode;
 };
 
 class App {
 public:
-    App();
+    App(int variant);
     ~App();
 
     bool init(const std::string& configPath);
@@ -44,6 +48,8 @@ public:
 private:
     int m_width;
     int m_height;
+    int m_variant;
+    
     std::string m_title;
     GLFWwindow* m_window = nullptr;
     Config m_config;
@@ -77,6 +83,8 @@ private:
     GLuint m_quadVAO = 0;
     GLuint m_quadVBO = 0;
     Shader m_shader;
+
+    CSV m_csv;
 
     void update();
     void render();

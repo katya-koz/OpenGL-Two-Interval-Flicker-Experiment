@@ -147,12 +147,14 @@
     </ClCompile>
     <ClCompile Include="App.cpp" />
     <ClCompile Include="Config.cpp" />
+    <ClCompile Include="csv.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Shader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h" />
     <ClInclude Include="Config.h" />
+    <ClInclude Include="csv.h" />
     <ClInclude Include="selectVariantDialog.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="Utils.h" />

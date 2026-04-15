@@ -9,7 +9,7 @@
 #include "selectVariantDialog.h"
 
 
-int selectedVariant = 0;
+int selectedVariant = -1;
 
 
 
@@ -26,11 +26,11 @@ INT_PTR CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         case IDOK:
         {
             if (IsDlgButtonChecked(hwnd, IDC_RADIO1))
-                selectedVariant = 1;
+                selectedVariant = 0;
             else if (IsDlgButtonChecked(hwnd, IDC_RADIO2))
-                selectedVariant = 2;
+                selectedVariant = 1;
             else if (IsDlgButtonChecked(hwnd, IDC_RADIO3))
-                selectedVariant = 3;
+                selectedVariant = 2;
 
             EndDialog(hwnd, IDOK);
             return TRUE;
@@ -74,7 +74,7 @@ int WINAPI WinMain(
     }
 
     //TO DO: use monitor dimensions, open across 2 monitors. mirror them.
-    App app;
+    App app(selectedVariant);
 
 
 

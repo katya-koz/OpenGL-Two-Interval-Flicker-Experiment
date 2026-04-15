@@ -1,6 +1,7 @@
 #include "app.h"
 #include <iostream>
 #include "Utils.h"
+#include "csv.h"
 
 static const std::string VERT_SRC = R"(
 #version 460 core
@@ -41,7 +42,7 @@ static const float QUAD_VERTS[] = {
 };
 
 
-App::App()  { }
+App::App(int variant) { m_variant = variant; }
 
 App::~App() {
     //if (m_texOrig) glDeleteTextures(1, &m_texOrig);
@@ -85,6 +86,12 @@ bool App::init(const std::string& configPath) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
+    // request float frame buffers for hdr imaging
+    glfwWindowHint(GLFW_RED_BITS, 16);
+    glfwWindowHint(GLFW_GREEN_BITS, 16);
+    glfwWindowHint(GLFW_BLUE_BITS, 16);
+    glfwWindowHint(GLFW_ALPHA_BITS, 16);
+
     glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
     glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
@@ -98,6 +105,7 @@ bool App::init(const std::string& configPath) {
     //}
 
     glfwMakeContextCurrent(m_window);
+    glfwSwapInterval(1); // enable v sync (should limit frame rate to monitor's refresh rate)
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, framebufferSizeCallback);
     glfwSetKeyCallback(m_window, keyCallback);
@@ -131,11 +139,25 @@ bool App::init(const std::string& configPath) {
 
     m_texture_L = m_texStart_L;
     m_phase = TrialPhase::StartInstructions;
-    //// load the first image
-    //m_config.trials[m_trialIndex].flickerIndex == 0 ? m_phase = TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
-    //// initial load of the first 2 images in trial
-    //loadTextures(m_config.trials[m_trialIndex].L_orig, m_config.trials[m_trialIndex].L_dec);
-    //// flicker will start first frame on original 
+
+    std::string variantName;
+    // variant
+    switch (m_variant) {
+        case 0:
+            variantName = "Full Image";
+            break;
+        case 1:
+            variantName = "Peripheral Crop";
+            break;
+        case 2:
+            variantName = "Local Flicker";
+            break;
+
+    }
+
+
+    // load the csv
+    m_csv.init(m_config.participantID, m_config.participantAge, m_config.participantGender, "Flicker Paradigm", variantName, { "Index", "Image", "Viewing Mode", "Answer", "Actual", "Reaction Time (s)" }, m_config.outputDirectory.string());
 
     m_phaseStart = glfwGetTime();
 
@@ -324,11 +346,30 @@ void App::recordResponse(int key) {
 
     TrialResult result;
     result.imageName = m_config.trials[m_trialIndex].name;
-    result.responseKey = key;
+    result.answer = key == GLFW_KEY_LEFT ? 0 : 1;
+    result.actual = m_config.trials[m_trialIndex].flickerIndex; 
+    result.index = m_trialIndex;
+
+    switch (m_config.trials[m_trialIndex].viewingMode) {
+        case 0:
+            result.viewingMode = "Stereo";
+            break;
+        case 1:
+            result.viewingMode = "Left";
+            break;
+        case 2: 
+            result.viewingMode = "Right";
+            break;
+        default:
+            result.viewingMode = "N/A";
+            break;
+    }
+
     result.reactionTime = glfwGetTime() - m_responseStart; // record reaction time?
     m_results.push_back(result);
-
-    // to do: write responses to csv
+    //headers are: { "Index", "Image", "Viewing Mode", "Answer", "Actual", "Reaction Time" }
+    std::vector<std::string> resultRow = {std::to_string(result.index), result.imageName, result.viewingMode, std::to_string(result.answer), std::to_string(result.actual), std::to_string(result.reactionTime)};
+    m_csv.writeRow(resultRow);
     m_trialIndex++;
     if (m_trialIndex >= static_cast<int>(m_config.trials.size())) {
         m_phase = TrialPhase::Done;
@@ -389,14 +430,19 @@ void App::loadTextures(const ImagePaths img) {
 
 // helper to load texture into id
 void App::loadTexture(const std::string& path, GLuint textureID) {
-    cv::Mat img = cv::imread(path, cv::IMREAD_COLOR);
+    cv::Mat img = cv::imread(path, cv::IMREAD_ANYDEPTH | cv::IMREAD_COLOR);
+    
+
     if (img.empty()) {
         Utils::FatalError("[App] Failed to load image: " + path);
         return;
     }
-
+    float scale = (img.depth() == CV_16U) ? 1.0f / 65535.0f : 1.0f / 255.0f; // scale image if it is 16 bits
+    img.convertTo(img, CV_32FC3, scale);
     cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
     cv::flip(img, img, 0);
+
+    GLint internalFormat = (img.depth() == CV_16U) ? GL_RGB16F : GL_RGB8;
 
     glBindTexture(GL_TEXTURE_2D, textureID);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -404,7 +450,7 @@ void App::loadTexture(const std::string& path, GLuint textureID) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.cols, img.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, img.data);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, img.cols, img.rows, 0, GL_RGB, GL_FLOAT, img.data);
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }

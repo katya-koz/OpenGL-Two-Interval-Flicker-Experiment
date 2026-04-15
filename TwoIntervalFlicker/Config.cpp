@@ -24,7 +24,14 @@ bool Config::load(const std::string& configPath) {
     }
 
     participantID = j.at("Participant ID").get<std::string>();
+    participantAge = std::to_string(j.at("Participant Age").get<int>());
+    participantGender = j.at("Participant Gender").get<std::string>();
     imageDirectory = j.at("Image Directory").get<std::string>();
+
+    // optional parameter
+    if (j.contains("Output Directory")) {
+        outputDirectory = j["Output Directory"].get<std::string>();
+    }
 
     if (!fs::exists(imageDirectory) || !fs::is_directory(imageDirectory)) {
         std::string msg = "[Config] Image directory not found: " + imageDirectory.string() + "";

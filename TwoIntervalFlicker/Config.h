@@ -19,8 +19,11 @@ struct ImagePaths {
 
 struct Config {
     std::string participantID;
+    std::string participantAge;
+    std::string participantGender;
     fs::path imageDirectory;
     std::vector<ImagePaths> trials;
+    fs::path outputDirectory;
 
     // load and parse json config file
     bool load(const std::string& configPath);
