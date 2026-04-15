@@ -309,7 +309,7 @@ void App::recordResponse(int key) {
         m_phase = TrialPhase::Done;
     }
     else {
-        m_config.trials[m_trialIndex].flickerIndex == 0 ? m_phase = TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
+        m_phase =  (m_config.trials[m_trialIndex].flickerIndex) == 0 ?TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
         m_phaseStart = glfwGetTime();
         loadTextures(m_config.trials[m_trialIndex].L_orig, m_config.trials[m_trialIndex].L_dec);
     }
