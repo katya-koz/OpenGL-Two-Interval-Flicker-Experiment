@@ -74,7 +74,7 @@ int WINAPI WinMain(
     }
 
     //TO DO: use monitor dimensions, open across 2 monitors. mirror them.
-    App app(800, 600, "Flicker Experiment");
+    App app;
 
 
 

@@ -40,11 +40,17 @@ static const float QUAD_VERTS[] = {
 };
 
 
-App::App(int width, int height, const std::string& title) : m_width(width), m_height(height), m_title(title) { }
+App::App()  { }
 
 App::~App() {
-    if (m_texOrig) glDeleteTextures(1, &m_texOrig);
-    if (m_texDec) glDeleteTextures(1, &m_texDec);
+    //if (m_texOrig) glDeleteTextures(1, &m_texOrig);
+    //if (m_texDec) glDeleteTextures(1, &m_texDec);
+    //if (m_texStart) glDeleteTextures(1, &m_texStart);
+    //if (m_texWaitResponse) glDeleteTextures(1, &m_texWaitResponse);
+
+    GLuint textures[] = { m_texOrig, m_texDec, m_texStart, m_texWaitResponse }; // textures can be batch deleted
+    glDeleteTextures(4, textures);
+
     if (m_quadVAO) glDeleteVertexArrays(1, &m_quadVAO);
     if (m_quadVBO) glDeleteBuffers(1, &m_quadVBO);
     glfwDestroyWindow(m_window);
@@ -67,24 +73,30 @@ bool App::init(const std::string& configPath) {
         return false;
     }
 
+
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor(); // assume the same resolution across the monitors
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+    m_width = mode->width;
+    m_height = mode->height;
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    m_window = glfwCreateWindow(m_width, m_height, m_title.c_str(), nullptr, nullptr); // windowed mode for debug
+    glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
-    // to do: finish for full screen 
-    // 
-    //GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    //const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+    
+    // GLFW can't technically do a 2 monitor full screen. a work around would be to create a double wide window w/ no decorations
+    m_window = glfwCreateWindow(m_width * 2, m_height, "Flicker Experiment", nullptr, nullptr);
 
-    //m_window = glfwCreateWindow(mode->width, mode->height, m_title.c_str(), monitor, nullptr);
-    if (!m_window) {
-       
-        glfwTerminate(); 
-        Utils::FatalError("[App] Failed to create GLFW window");
-        return false;
-    }
+
+    //if (!m_window) {
+    //    glfwTerminate(); 
+    //    Utils::FatalError("[App] Failed to create GLFW window");
+    //    return false;
+    //}
 
     glfwMakeContextCurrent(m_window);
     glfwSetWindowUserPointer(m_window, this);
@@ -170,7 +182,7 @@ void App::update() {
     const double elapsed = now - m_phaseStart;
     const ImagePaths& img = m_config.trials[m_trialIndex];
 
-    // i think there should be a better way to do this. image texture should only be set once per phase.
+    // maybe refactor this state machine at some point
 
     // show original, no flicker
     if ((m_phase == TrialPhase::ShowOriginal)) {
@@ -241,7 +253,6 @@ void App::renderTexture() {
 
     glBindTexture(GL_TEXTURE_2D, m_texture);
 
-    
 
     glBindVertexArray(m_quadVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -309,7 +320,7 @@ void App::recordResponse(int key) {
         m_phase = TrialPhase::Done;
     }
     else {
-        m_config.trials[m_trialIndex].flickerIndex == 0 ? m_phase = TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
+        m_phase =  (m_config.trials[m_trialIndex].flickerIndex) == 0 ? TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
         m_phaseStart = glfwGetTime();
         loadTextures(m_config.trials[m_trialIndex].L_orig, m_config.trials[m_trialIndex].L_dec);
     }

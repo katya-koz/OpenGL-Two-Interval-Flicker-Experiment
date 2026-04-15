@@ -26,7 +26,7 @@ struct TrialResult {
 
 class App {
 public:
-    App(int width, int height, const std::string& title);
+    App();
     ~App();
 
     bool init(const std::string& configPath);
@@ -67,6 +67,26 @@ private:
     // for instrucitons
     GLuint m_texStart = 0;
     GLuint m_texWaitResponse = 0;
+
+
+    /*
+     GLuint m_texture_L = 0; // current texture on screen (left)
+    GLuint m_texture_R = 0;
+
+    // need to load original and decompressed in order to flicker between them (without re-loading the images in every update tick)
+    GLuint m_texOrig_L = 0;
+    GLuint m_texDec_L = 0;
+    GLuint m_texOrig_R = 0;
+    GLuint m_texDec_R = 0;
+    // double up, later for stereo mode.
+
+    // for instrucitons
+    GLuint m_texStart_L = 0;
+    GLuint m_texWaitResponse_L = 0;
+    GLuint m_texStart_R = 0;
+    GLuint m_texWaitResponse_R = 0;
+    
+    */
 
     GLuint m_quadVAO = 0;
     GLuint m_quadVBO = 0;
