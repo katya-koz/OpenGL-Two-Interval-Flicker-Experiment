@@ -26,7 +26,7 @@ struct TrialResult {
 
 class App {
 public:
-    App(int width, int height, const std::string& title);
+    App();
     ~App();
 
     bool init(const std::string& configPath);
