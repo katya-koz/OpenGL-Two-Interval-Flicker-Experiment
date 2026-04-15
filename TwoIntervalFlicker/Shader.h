@@ -1,0 +1,18 @@
+#pragma once
+
+#include <glad/glad.h>
+#include <string>
+
+class Shader {
+public:
+    GLuint id = 0;
+
+    bool load(const std::string& vertSrc, const std::string& fragSrc);
+    void use() const;
+    void setInt(const std::string& name, int value) const;
+
+    ~Shader();
+
+private:
+    static GLuint compile(GLenum type, const std::string& src);
+};
