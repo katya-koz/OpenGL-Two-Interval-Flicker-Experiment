@@ -91,6 +91,7 @@ private:
     GLuint m_quadVBO = 0;
     Shader m_shader;
     Shader m_fovealShader;
+    Shader m_localShader;
 
     CSV m_csv;
 
@@ -108,9 +109,9 @@ private:
     void loadTexture(const std::string& path, GLuint textureID);
     void renderTexture(GLuint texL, GLuint texR);
     void renderFovealTexture(GLuint texL, GLuint texR);
+    void renderLocalTexture(GLuint texL, GLuint texR);
     void renderCrosshair();
     void recordResponse(int key);
-    void printResults() const;
 
     static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);

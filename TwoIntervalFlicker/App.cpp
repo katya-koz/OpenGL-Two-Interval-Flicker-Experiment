@@ -85,6 +85,31 @@ static const std::string FOVEAL_FRAG_SRC = R"(
         FragColor = vec4(color.rgb, alpha);
     }
 )";
+// Local flicker shader (its easiest to mask off the rest of the image)
+static const std::string LOCAL_FRAG_SRC = R"(
+    #version 460 core
+
+    in vec2 TexCoord;
+    out vec4 FragColor;
+
+    uniform sampler2D uTexture;
+    uniform vec2 uResolution;   // screen size in pixels
+    uniform vec2 uRectPos;      // top left corner in pixels
+    uniform vec2 uRectSize;     // width + height in pixels
+
+    void main() {
+        // convert TexCoord (0..1) to pixel position
+        vec2 pixelPos = TexCoord * uResolution;
+
+        // discard anything outside the rectangle
+        if (pixelPos.x < uRectPos.x || pixelPos.x > uRectPos.x + uRectSize.x ||
+            pixelPos.y < uRectPos.y || pixelPos.y > uRectPos.y + uRectSize.y) {
+            discard;
+        }
+
+        FragColor = texture(uTexture, TexCoord);
+    }
+)";
 
 
 float t = 0.001f; // thickness (represents half the thickness)
@@ -121,7 +146,6 @@ static const float QUAD_VERTS[] = {
      1.0f, -1.0f,   1.0f, 0.0f,   // bottom-right
      1.0f,  1.0f,   1.0f, 1.0f,   // top-right
 };
-
 
 App::App(int variant) { m_variant = variant; }
 
@@ -225,8 +249,13 @@ bool App::init(const std::string& configPath) {
 
    // std::string FOVEAL_FRAG_SRC = Utils::ReadFile("shaders/foveal_fragment.glsl"); // fix util 
     //build shaders
-    if (!m_shader.load(VERT_SRC, FRAG_SRC)) return false;
-    if (!m_fovealShader.load(VERT_SRC, FOVEAL_FRAG_SRC)) return false; 
+    if (!m_shader.load(VERT_SRC, FRAG_SRC)) return false; // all variants use this shader (full image)
+    if (m_variant == 1) {
+        if (!m_fovealShader.load(VERT_SRC, FOVEAL_FRAG_SRC)) return false;
+    }
+    else if (m_variant == 2) {
+        if (!m_localShader.load(VERT_SRC, LOCAL_FRAG_SRC)) return false;
+    }
 
     //quad geometry building
     if (!initQuad()) return false;
@@ -250,6 +279,7 @@ bool App::init(const std::string& configPath) {
     m_phase = TrialPhase::StartInstructions;
 
     std::string variantName;
+    float fovealRadiusPx;
     // variant
     switch (m_variant) {
         case 0:
@@ -257,18 +287,20 @@ bool App::init(const std::string& configPath) {
             break;
         case 1:
             variantName = "Peripheral Crop";
+            m_fovealShader.use();
+            m_fovealShader.setInt("uTexture", 0);
+            m_fovealShader.setBool("uMirror", true); // mirror 
+            m_fovealShader.setVec2("uResolution", (float)m_width, (float)m_height);
+            fovealRadiusPx = Utils::degreesToRadiusPx(m_config.fovealWidth, m_config.viewingDistanceMeters, m_config.physicalScreenWidthMeters, m_width);
+            m_fovealShader.setFloat("uCenterRadiusPx", (float)fovealRadiusPx);
             break;
         case 2:
             variantName = "Local Flicker";
             break;
-
     }
-
 
     // load the csv
     m_csv.init(m_config.participantID, m_config.participantAge, m_config.participantGender, "Flicker Paradigm", variantName, { "Index", "Image", "Viewing Mode", "Answer", "Actual", "Reaction Time (s)" }, m_config.outputDirectory.string());
-    
-    
 
     m_phaseStart = glfwGetTime();
     return true;
@@ -305,8 +337,6 @@ void App::run() {
         glfwSwapBuffers(m_window);
         glfwPollEvents();
     }
-
-    printResults();
 }
 
 // update loop
@@ -320,22 +350,17 @@ void App::update() {
 
     // show original, no flicker
     if ((m_phase == TrialPhase::ShowOriginal)) {
-        //m_texture_L = m_texOrig_L;
-        //m_texture_R = m_texOrig_R;
-        //loadTexture(img.L_orig);
         if (elapsed >= timeoutDuration) {
              advancePhase();
              return;
         }    
     }
-
     if (m_phase == TrialPhase::ShowWaitScreen) {
         if (elapsed >= waitTimeoutDuration) {
             advancePhase();
             return;
         }
     }
-
     // flicker phase
     if (m_phase == TrialPhase::ShowFlicker ) {
         if (elapsed >= timeoutDuration) {
@@ -346,14 +371,10 @@ void App::update() {
         if (now - m_flickerLast >= flickerInterval) {
             m_flickerLast = now;
             m_flickerShow = !m_flickerShow;
-            //m_texture_L = m_flickerOnOrig ? m_texOrig_L : m_texDec_L;
-            //m_texture_R = m_flickerOnOrig ? m_texOrig_R : m_texDec_R;
         }
 
     }
 }
-
-
 
 
 // rendering
@@ -392,7 +413,11 @@ void App::render() {
         else if (m_variant == 1) { // foveal
            
             renderTexture(m_texOrig_L, m_texOrig_R); // renders original texture
-            if (m_flickerShow) renderFovealTexture(m_texDec_L, m_texDec_R); // with dec over top
+            if (m_flickerShow) renderFovealTexture(m_texDec_L, m_texDec_R); // with dec over top (foveal mask)
+        }
+        else if (m_variant == 2) {
+            renderTexture(m_texOrig_L, m_texOrig_R);
+            if (m_flickerShow) renderLocalTexture(m_texDec_L, m_texDec_R); // with dec over top (local flicker mask)
         }
         
     }
@@ -425,13 +450,30 @@ void App::render() {
 
 void App::renderFovealTexture(GLuint texL, GLuint texR) {
     m_fovealShader.use();
-    m_fovealShader.setInt("uTexture", 0);
-    m_fovealShader.setBool("uMirror", true); // mirror 
-    m_fovealShader.setVec2("uResolution",  (float)m_width, (float)m_height);
+    
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    float fovealRadiusPx = Utils::degreesToRadiusPx(m_config.fovealWidth, m_config.viewingDistanceMeters, m_config.physicalScreenWidthMeters, m_width);
+    glActiveTexture(GL_TEXTURE0);
+    glBindVertexArray(m_quadVAO);
 
-    m_fovealShader.setFloat("uCenterRadiusPx", (float)fovealRadiusPx);
+    // left monitor
+    glViewport(0, 0, m_width, m_height);
+    glBindTexture(GL_TEXTURE_2D, texL);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // right monitor (assuming same width as left)
+    glViewport(m_width, 0, m_width, m_height);
+    glBindTexture(GL_TEXTURE_2D, texR);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void App::renderLocalTexture(GLuint texL, GLuint texR) {
+    m_localShader.use();
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -489,6 +531,15 @@ void App::advancePhase() {
 
             //load the next 2 images (L, R) in the trial
             if ((m_trialIndex + 1) < m_config.trials.size()) { 
+                if (m_variant == 2) { // update local flicker upon start of new trial
+                    auto [x, y, w, h] = Utils::randomizeQuad(m_width, m_height);
+                    m_localShader.use();
+                    m_localShader.setVec2("uResolution", (float)m_width, (float)m_height);
+                    m_localShader.setVec2("uRectPos", x, y);
+                    m_localShader.setVec2("uRectSize", w, h);
+                    m_localShader.setBool("uMirror", true); // mirror
+                }
+
                 loadTextures(m_config.trials[m_trialIndex + 1]); 
             }
         }
@@ -515,6 +566,17 @@ void App::advancePhase() {
 
             //load the next 2 images (L, R) in the trial
             if ((m_trialIndex + 1) < m_config.trials.size()) {
+
+                if (m_variant == 2) { // update local flicker upon start of new trial
+                    auto [x, y, w, h] = Utils::randomizeQuad(m_width, m_height);
+                    m_localShader.use();
+                    m_localShader.setVec2("uResolution", (float)m_width, (float)m_height);
+                    m_localShader.setVec2("uRectPos", x, y);
+                    m_localShader.setVec2("uRectSize", w, h);
+                    m_localShader.setBool("uMirror", true); // mirror
+                }
+               
+
                 loadTextures(m_config.trials[m_trialIndex + 1]);
             }
         }
@@ -649,16 +711,7 @@ void App::loadTexture(const std::string& path, GLuint textureID) {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-// results (to do: csv)
 
-void App::printResults() const {
-    //std::cout << "--- Results ---";
-    //for (const auto& r : m_results) {
-    //    std::cout << "  " << r.imageName
-    //        << "  " << (r.responseKey == GLFW_KEY_LEFT ? "LEFT " : "RIGHT")
-    //        << "  RT: " << r.reactionTime << "s";
-    //}
-}
 
 // GLFW callbacks
 
@@ -686,6 +739,15 @@ void App::keyCallback(GLFWwindow* window, int key, int scancode, int action, int
             //const auto& img = app->m_config.trials[0];
             app->m_trialIndex = 0;
             app->m_phase = (app->m_config.trials[0].flickerIndex == 0) ? TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
+            if (app->m_variant == 2) { // update local flicker upon start of new trial
+                auto [x, y, w, h] = Utils::randomizeQuad(app->m_width, app->m_height);
+                app->m_localShader.use();
+                app->m_localShader.setVec2("uResolution", app->m_width, app->m_height);
+                app->m_localShader.setVec2("uRectPos", x, y);
+                app->m_localShader.setVec2("uRectSize", w, h);
+                app->m_localShader.use();
+                app->m_localShader.setBool("uMirror", true); // mirror
+            }
             app->m_phaseStart = glfwGetTime();
         }
     }

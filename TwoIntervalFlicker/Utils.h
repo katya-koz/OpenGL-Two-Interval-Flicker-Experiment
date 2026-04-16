@@ -60,6 +60,26 @@ namespace Utils
 		return radiusPixels;
 	}
 
+	// randomize a local quad location and size for local flicker
+	static std::tuple<float, float, float, float> randomizeQuad(int screenWidth, int screenHeight)
+	{
+		static std::mt19937 rng(std::random_device{}());
+
+		float minSize = 100.0f;
+		float maxSize = 400.0f;
+
+		std::uniform_real_distribution<float> sizeDist(minSize, maxSize);
+		float w = sizeDist(rng);
+		float h = sizeDist(rng);
+
+		std::uniform_real_distribution<float> xDist(0.0f, screenWidth - w);
+		std::uniform_real_distribution<float> yDist(0.0f, screenHeight - h);
+		float x = xDist(rng);
+		float y = yDist(rng);
+
+		return { x, y, w, h };
+	}
+
    
 
 }
