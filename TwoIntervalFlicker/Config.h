@@ -29,6 +29,10 @@ struct Config {
     double waitTime = 2.0; // time between images
     double imageTime = 2.0; // time images are shown
 
+    float fovealWidth = 3.0; // degrees
+    float physicalScreenWidthMeters = 0.53; // m
+    float viewingDistanceMeters = 0.6; // m
+
     // load and parse json config file
     bool load(const std::string& configPath);
 

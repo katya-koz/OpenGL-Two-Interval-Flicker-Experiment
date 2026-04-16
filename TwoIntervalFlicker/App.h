@@ -60,12 +60,13 @@ private:
     double m_phaseStart = 0.0;
     double m_responseStart = 0.0;
     double m_flickerLast = 0.0;   // glfwGetTime() of last swap
-    bool m_flickerOnOrig = true;  // true = showing orig, false = showing dec
+    //bool m_flickerOnOrig = true;  // true = showing orig, false = showing dec
+    bool m_flickerShow; // true - dec is on; false - dec is off
 
     std::vector<TrialResult> m_results;
 
-    GLuint m_texture_L = 0; // current texture on screen (left)
-    GLuint m_texture_R = 0;
+    //GLuint m_texture_L = 0; // current texture on screen (left)
+    //GLuint m_texture_R = 0;
 
     // need to load original and decompressed in order to flicker between them (without re-loading the images in every update tick)
     GLuint m_texOrig_L = 0;
@@ -89,11 +90,14 @@ private:
     GLuint m_quadVAO = 0;
     GLuint m_quadVBO = 0;
     Shader m_shader;
+    Shader m_fovealShader;
 
     CSV m_csv;
 
     void update();
     void render();
+
+    void renderFlickerLayer(GLuint origL, GLuint origR, GLuint decL, GLuint decR);
 
     bool initQuad();
     bool initCrosshair();
@@ -102,7 +106,8 @@ private:
 
     void loadTextures(const ImagePaths paths);
     void loadTexture(const std::string& path, GLuint textureID);
-    void renderTexture();
+    void renderTexture(GLuint texL, GLuint texR);
+    void renderFovealTexture(GLuint texL, GLuint texR);
     void renderCrosshair();
     void recordResponse(int key);
     void printResults() const;

@@ -43,7 +43,10 @@ void Shader::setVec4(const std::string& name, float x, float y, float z, float w
 void Shader::setFloat(const std::string& name, float value) const {
     glUniform1f(glGetUniformLocation(id, name.c_str()), value);
 }
-
+void Shader::setVec2(const std::string& name, float x, float y)
+{
+    glUniform2f(glGetUniformLocation(id, name.c_str()), x, y);
+}
 void Shader::setBool(const std::string& name, bool value) const {
     //glUniform1i(glGetUniformLocation(id, name.c_str()), (int)value);
     GLint loc = glGetUniformLocation(id, name.c_str());

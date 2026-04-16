@@ -54,6 +54,39 @@ void main() {
     FragColor = uColor;
 }
 )";
+
+// masks off the center based off of defined degrees. feathers it out
+static const std::string FOVEAL_FRAG_SRC = R"(
+    #version 460 core
+
+    in vec2 TexCoord;
+    out vec4 FragColor;
+
+    uniform sampler2D uTexture;
+    uniform vec2 uResolution;
+
+    uniform float uCenterRadiusPx;
+    const float featherPx = 80.0;
+
+    void main()
+    {
+        vec2 fragPos = TexCoord * uResolution;
+        vec2 center = uResolution * 0.5;
+
+        float dist = distance(fragPos, center);
+        float alpha = smoothstep(
+            uCenterRadiusPx,
+            uCenterRadiusPx + featherPx,
+            dist
+        );
+
+        vec4 color = texture(uTexture, TexCoord);
+
+        FragColor = vec4(color.rgb, alpha);
+    }
+)";
+
+
 float t = 0.001f; // thickness (represents half the thickness)
 float s = 0.03f; // size (distance from center to edge of crosshair)
 
@@ -165,6 +198,8 @@ bool App::init(const std::string& configPath) {
     glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
     glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
+
+
     m_window = glfwCreateWindow(m_width * 2, m_height, "Flicker Experiment", nullptr, nullptr);
 
 
@@ -187,8 +222,11 @@ bool App::init(const std::string& configPath) {
 
     glViewport(0, 0, m_width, m_height);
 
-    //build shader
+
+   // std::string FOVEAL_FRAG_SRC = Utils::ReadFile("shaders/foveal_fragment.glsl"); // fix util 
+    //build shaders
     if (!m_shader.load(VERT_SRC, FRAG_SRC)) return false;
+    if (!m_fovealShader.load(VERT_SRC, FOVEAL_FRAG_SRC)) return false; 
 
     //quad geometry building
     if (!initQuad()) return false;
@@ -206,8 +244,9 @@ bool App::init(const std::string& configPath) {
     glGenTextures(1, &m_texWaitResponse_R);
 
     loadInstructionsTextures();
+    loadTextures(m_config.trials[0]); // loads the first 2 images in the trial
 
-    m_texture_L = m_texStart_L;
+    //m_texture_L = m_texStart_L;
     m_phase = TrialPhase::StartInstructions;
 
     std::string variantName;
@@ -228,10 +267,10 @@ bool App::init(const std::string& configPath) {
 
     // load the csv
     m_csv.init(m_config.participantID, m_config.participantAge, m_config.participantGender, "Flicker Paradigm", variantName, { "Index", "Image", "Viewing Mode", "Answer", "Actual", "Reaction Time (s)" }, m_config.outputDirectory.string());
+    
+    
 
     m_phaseStart = glfwGetTime();
-
-
     return true;
 }
 
@@ -281,8 +320,8 @@ void App::update() {
 
     // show original, no flicker
     if ((m_phase == TrialPhase::ShowOriginal)) {
-        m_texture_L = m_texOrig_L;
-        m_texture_R = m_texOrig_R;
+        //m_texture_L = m_texOrig_L;
+        //m_texture_R = m_texOrig_R;
         //loadTexture(img.L_orig);
         if (elapsed >= timeoutDuration) {
              advancePhase();
@@ -306,9 +345,9 @@ void App::update() {
         const double flickerInterval = 1.0 / flickerRate; // seconds per swap
         if (now - m_flickerLast >= flickerInterval) {
             m_flickerLast = now;
-            m_flickerOnOrig = !m_flickerOnOrig;
-            m_texture_L = m_flickerOnOrig ? m_texOrig_L : m_texDec_L;
-            m_texture_R = m_flickerOnOrig ? m_texOrig_R : m_texDec_R;
+            m_flickerShow = !m_flickerShow;
+            //m_texture_L = m_flickerOnOrig ? m_texOrig_L : m_texDec_L;
+            //m_texture_R = m_flickerOnOrig ? m_texOrig_R : m_texDec_R;
         }
 
     }
@@ -340,23 +379,32 @@ void App::render() {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (m_phase == TrialPhase::ShowOriginal || m_phase == TrialPhase::ShowFlicker)
+    if (m_phase == TrialPhase::ShowOriginal)
     {
-        renderTexture();
+        renderTexture(m_texOrig_L, m_texOrig_R); // renders just the orignal texture
+    }
+    else if (m_phase == TrialPhase::ShowFlicker)
+    {
+        if (m_variant == 0) {
+            renderTexture(m_texOrig_L, m_texOrig_R); // renders original texture
+            if(m_flickerShow) renderTexture(m_texDec_L, m_texDec_R); // with dec over top
+        }
+        else if (m_variant == 1) { // foveal
+           
+            renderTexture(m_texOrig_L, m_texOrig_R); // renders original texture
+            if (m_flickerShow) renderFovealTexture(m_texDec_L, m_texDec_R); // with dec over top
+        }
+        
     }
 
     else if (m_phase == TrialPhase::StartInstructions)
     {
-        m_texture_L = m_texStart_L;
-        m_texture_R = m_texStart_R;
-        renderTexture();
+        renderTexture(m_texStart_L, m_texStart_R);
     }
 
     else if (m_phase == TrialPhase::WaitForResponse)
     {
-        m_texture_L = m_texWaitResponse_L;
-        m_texture_R = m_texWaitResponse_R;
-        renderTexture();
+        renderTexture(m_texWaitResponse_L, m_texWaitResponse_R);
     }
 
     // between trials: grey screen
@@ -371,9 +419,42 @@ void App::render() {
 
 }
 
+
+
 // renderTexture — bind shader + quad + texture, draw 6 verts
 
-void App::renderTexture() {
+void App::renderFovealTexture(GLuint texL, GLuint texR) {
+    m_fovealShader.use();
+    m_fovealShader.setInt("uTexture", 0);
+    m_fovealShader.setBool("uMirror", true); // mirror 
+    m_fovealShader.setVec2("uResolution",  (float)m_width, (float)m_height);
+
+    float fovealRadiusPx = Utils::degreesToRadiusPx(m_config.fovealWidth, m_config.viewingDistanceMeters, m_config.physicalScreenWidthMeters, m_width);
+
+    m_fovealShader.setFloat("uCenterRadiusPx", (float)fovealRadiusPx);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindVertexArray(m_quadVAO);
+
+    // left monitor
+    glViewport(0, 0, m_width, m_height);
+    glBindTexture(GL_TEXTURE_2D, texL);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // right monitor (assuming same width as left)
+    glViewport(m_width, 0, m_width, m_height);
+    glBindTexture(GL_TEXTURE_2D, texR);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void App::renderTexture(GLuint texL, GLuint texR) {
     m_shader.use();
     m_shader.setInt("uTexture", 0);
     m_shader.setBool("uMirror", true); // mirror 
@@ -383,18 +464,19 @@ void App::renderTexture() {
 
     // left monitor
     glViewport(0, 0, m_width, m_height);
-    glBindTexture(GL_TEXTURE_2D, m_texture_L);
+    glBindTexture(GL_TEXTURE_2D, texL);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
     // right monitor (assuming same width as left)
     glViewport(m_width, 0, m_width, m_height);
-    glBindTexture(GL_TEXTURE_2D, m_texture_R);
+    glBindTexture(GL_TEXTURE_2D, texR);
     
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
+
 
 // phases
 
@@ -404,6 +486,11 @@ void App::advancePhase() {
     if (m_phase == TrialPhase::ShowOriginal) {
         if (m_config.trials[m_trialIndex].flickerIndex == 0) { // this is the second image shown, wait for response is next
             m_phase = TrialPhase::WaitForResponse;
+
+            //load the next 2 images (L, R) in the trial
+            if ((m_trialIndex + 1) < m_config.trials.size()) { 
+                loadTextures(m_config.trials[m_trialIndex + 1]); 
+            }
         }
         else { // this is the first image, show wait screen next
             m_phase = TrialPhase::ShowWaitScreen;
@@ -417,8 +504,7 @@ void App::advancePhase() {
         else { // flicker is next to happen
             m_phase = TrialPhase::ShowFlicker;  
         }
-        //load the next 2 images in the trial
-        loadTextures(m_config.trials[m_trialIndex]);
+        
     }
     else if (m_phase == TrialPhase::ShowFlicker) {
         if (m_config.trials[m_trialIndex].flickerIndex == 0) { // this is the first image, show wait screen next
@@ -426,6 +512,11 @@ void App::advancePhase() {
         }
         else { // this is the second image shown, wait for response is next
             m_phase = TrialPhase::WaitForResponse;
+
+            //load the next 2 images (L, R) in the trial
+            if ((m_trialIndex + 1) < m_config.trials.size()) {
+                loadTextures(m_config.trials[m_trialIndex + 1]);
+            }
         }
 
         
@@ -521,12 +612,20 @@ void App::loadTextures(const ImagePaths img) {
     default:
         Utils::FatalError("[App] viewing mode is not valid. Must be 0, 1, or 2. Is : " + img.viewingMode);
     }
+
+
+        
+
+    
 }
 
 // helper to load texture into id
 void App::loadTexture(const std::string& path, GLuint textureID) {
+    //std::thread t([&]() {
+    //    
+    //    
+    //});
     cv::Mat img = cv::imread(path, cv::IMREAD_ANYDEPTH | cv::IMREAD_COLOR);
-    
 
     if (img.empty()) {
         Utils::FatalError("[App] Failed to load image: " + path);
@@ -544,7 +643,7 @@ void App::loadTexture(const std::string& path, GLuint textureID) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, img.cols, img.rows, 0, GL_RGB, GL_FLOAT, img.data);
 
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -583,12 +682,10 @@ void App::keyCallback(GLFWwindow* window, int key, int scancode, int action, int
     {
         if (app->m_phase == TrialPhase::StartInstructions)
         {
+            
+            //const auto& img = app->m_config.trials[0];
             app->m_trialIndex = 0;
-
-            const auto& img = app->m_config.trials[0];
-            app->loadTextures(img);
-
-            app->m_phase = (img.flickerIndex == 0) ? TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
+            app->m_phase = (app->m_config.trials[0].flickerIndex == 0) ? TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
             app->m_phaseStart = glfwGetTime();
         }
     }

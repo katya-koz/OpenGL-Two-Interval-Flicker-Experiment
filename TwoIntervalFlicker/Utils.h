@@ -7,7 +7,10 @@
 
 namespace Utils
 {
-
+	static std::string ReadFile(const std::string& path) {
+		std::ifstream f(path);
+		return std::string(std::istreambuf_iterator<char>(f), {});
+	}
 	static void FatalError(const std::string& message)
 	{
 		const auto result = MessageBoxA(
@@ -43,6 +46,18 @@ namespace Utils
 			n.flickerIndex = dist(gen);
 		}
 		return;
+	}
+
+	// calculate the radius of the foveal view based off screen size, viewing distance, and given foveal width (degrees)
+	static float degreesToRadiusPx(float degrees, float viewingDistanceMeters, float screenWidthMeters, float screenWidthPixels)
+	{
+		float radians = degrees * (3.14159265f / 180.0f);
+
+		float radiusMeters = viewingDistanceMeters * tan(radians * 0.5f);
+
+		float radiusPixels = (radiusMeters / screenWidthMeters) * screenWidthPixels;
+
+		return radiusPixels;
 	}
 
    
