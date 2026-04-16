@@ -2,6 +2,10 @@
 #include <iostream>
 #include "Utils.h"
 #include "csv.h"
+#include <mmsystem.h>
+#include <Windows.h>
+
+#pragma comment(lib, "winmm.lib")
 
 static const std::string VERT_SRC = R"(
 #version 460 core
@@ -395,28 +399,23 @@ void App::renderTexture() {
 // phases
 
 void App::advancePhase() {
-    const double now = glfwGetTime();
+    //const double now = glfwGetTime();
 
     if (m_phase == TrialPhase::ShowOriginal) {
         if (m_config.trials[m_trialIndex].flickerIndex == 0) { // this is the second image shown, wait for response is next
             m_phase = TrialPhase::WaitForResponse;
-            m_phaseStart = now;
-            m_responseStart = now;
         }
         else { // this is the first image, show wait screen next
             m_phase = TrialPhase::ShowWaitScreen;
-            m_phaseStart = now;
         }
-
     }
     else if (m_phase == TrialPhase::ShowWaitScreen) {
         if (m_config.trials[m_trialIndex].flickerIndex == 0) { // flicker has already happened, next phase is show original
             m_phase = TrialPhase::ShowOriginal;
-            m_phaseStart = now;
+            
         }
         else { // flicker is next to happen
-            m_phase = TrialPhase::ShowFlicker;    
-            m_phaseStart = now;
+            m_phase = TrialPhase::ShowFlicker;  
         }
         //load the next 2 images in the trial
         loadTextures(m_config.trials[m_trialIndex]);
@@ -424,16 +423,15 @@ void App::advancePhase() {
     else if (m_phase == TrialPhase::ShowFlicker) {
         if (m_config.trials[m_trialIndex].flickerIndex == 0) { // this is the first image, show wait screen next
             m_phase = TrialPhase::ShowWaitScreen;
-            m_phaseStart = now;
         }
         else { // this is the second image shown, wait for response is next
             m_phase = TrialPhase::WaitForResponse;
-            m_phaseStart = now;
-            m_responseStart = now;
         }
 
         
     }
+    m_phaseStart = glfwGetTime();
+    m_responseStart = glfwGetTime();
 }
 
 void App::recordResponse(int key) {
@@ -444,6 +442,8 @@ void App::recordResponse(int key) {
     result.answer = key == GLFW_KEY_LEFT ? 0 : 1;
     result.actual = m_config.trials[m_trialIndex].flickerIndex; 
     result.index = m_trialIndex;
+
+    result.answer == result.actual ? PlaySound(TEXT("sounds/Success.wav"), NULL, SND_FILENAME | SND_ASYNC) : PlaySound(TEXT("sounds/error.wav"), NULL, SND_FILENAME | SND_ASYNC);
 
     switch (m_config.trials[m_trialIndex].viewingMode) {
         case 0:
