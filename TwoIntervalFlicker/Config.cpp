@@ -45,12 +45,19 @@ bool Config::load(const std::string& configPath) {
     if (j.contains("Foveal Width (degrees)")) {
         imageTime = j["Foveal Width (degrees)"].get<float>();
     }
-    if (j.contains("Physical Screen Width (meters)")) {
-        physicalScreenWidthMeters = j["Physical Screen Width (meters)"].get<float>();
+    if (j.contains("Pixels/Degree")) {
+        pixelsPerDegree = j["Pixels/Degree"].get<float>();
     }
-    if (j.contains("Physical Viewing Distance (meters)")) {
-        viewingDistanceMeters = j["Physical Viewing Distance (meters)"].get<float>();
+
+    if (j.contains("TargetFPS")) {
+        targetFPS = j["TargetFPS"].get<float>();
     }
+    //if (j.contains("Physical Screen Width (meters)")) {
+    //    physicalScreenWidthMeters = j["Physical Screen Width (meters)"].get<float>();
+    //}
+    //if (j.contains("Physical Viewing Distance (meters)")) {
+    //    viewingDistanceMeters = j["Physical Viewing Distance (meters)"].get<float>();
+    //}
 
     if (!fs::exists(imageDirectory) || !fs::is_directory(imageDirectory)) {
         std::string msg = "[Config] Image directory not found: " + imageDirectory.string() + "";

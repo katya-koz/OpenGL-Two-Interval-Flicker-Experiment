@@ -234,7 +234,7 @@ bool App::init(const std::string& configPath) {
     //}
 
     glfwMakeContextCurrent(m_window);
-    glfwSwapInterval(1); // enable v sync (should limit frame rate to monitor's refresh rate)
+    //glfwSwapInterval(1); // enable v sync (should limit frame rate to monitor's refresh rate)
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, framebufferSizeCallback);
     glfwSetKeyCallback(m_window, keyCallback);
@@ -291,7 +291,7 @@ bool App::init(const std::string& configPath) {
             m_fovealShader.setInt("uTexture", 0);
             m_fovealShader.setBool("uMirror", true); // mirror 
             m_fovealShader.setVec2("uResolution", (float)m_width, (float)m_height);
-            fovealRadiusPx = Utils::degreesToRadiusPx(m_config.fovealWidth, m_config.viewingDistanceMeters, m_config.physicalScreenWidthMeters, m_width);
+            fovealRadiusPx = Utils::fovealRadiusFromPixelsPerDegree(m_config.fovealWidth, m_config.pixelsPerDegree);
             m_fovealShader.setFloat("uCenterRadiusPx", (float)fovealRadiusPx);
             break;
         case 2:
@@ -331,11 +331,24 @@ bool App::initQuad() {
 // main loop
 
 void App::run() {
+    using clock = std::chrono::high_resolution_clock;
+
+    const double targetFrameTime = 1.0 / m_config.targetFPS;
+    auto nextFrameTime = clock::now();
+
     while (!glfwWindowShouldClose(m_window) && m_phase != TrialPhase::Done) {
+
         update();
         render();
+
         glfwSwapBuffers(m_window);
         glfwPollEvents();
+
+        nextFrameTime += std::chrono::duration_cast<clock::duration>(
+            std::chrono::duration<double>(targetFrameTime)
+        );
+
+        std::this_thread::sleep_until(nextFrameTime);
     }
 }
 
@@ -386,12 +399,12 @@ void App::renderCrosshair() {
     m_crosshairShader.setFloat("uAspect", (float)m_width / (float)m_height);
 
     glBindVertexArray(m_crosshairVAO);
-
+    // render horizontal cross hair on left
     glViewport(0, 0, m_width, m_height);
-    glDrawArrays(GL_TRIANGLES, 0, 12);
-
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    // render vertical cross hair on right
     glViewport(m_width, 0, m_width, m_height);
-    glDrawArrays(GL_TRIANGLES, 0, 12);
+    glDrawArrays(GL_TRIANGLES, 6, 12);
 
     glBindVertexArray(0);
 }
