@@ -660,34 +660,97 @@ void App::loadTextures(const ImagePaths img) {
 }
 
 // helper to load texture into id TODO: HDR support. auto switch monitor into hdr mode?
-void App::loadTexture(const std::string& path, GLuint textureID) {
-    //std::thread t([&]() {
-    //    
-    //    
-    //});
-    cv::Mat img = cv::imread(path, cv::IMREAD_ANYDEPTH | cv::IMREAD_COLOR);
+//void App::loadTexture(const std::string& path, GLuint textureID) {
+//    //std::thread t([&]() {
+//    //    
+//    //    
+//    //});
+//    cv::Mat img = cv::imread(path, cv::IMREAD_ANYDEPTH | cv::IMREAD_COLOR);
+//
+//    if (img.empty()) {
+//        Utils::FatalError("[App] Failed to load image: " + path);
+//        return;
+//    }
+//
+//   // img.convertTo(img, CV_32FC3, 1.0 / 255.0);
+//    //cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
+//    cv::flip(img, img, 0);
+//
+//
+//    glBindTexture(GL_TEXTURE_2D, textureID);
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+//    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+//    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.cols, img.rows, 0, GL_RGB, GL_FLOAT, img.data);
+//    glBindTexture(GL_TEXTURE_2D, 0);
+//
+//    img.release();
+//}
 
-    if (img.empty()) {
-        Utils::FatalError("[App] Failed to load image: " + path);
-        return;
+void App::loadTexture(const std::string& path, GLuint textureID)
+{
+    cv::Mat src = cv::imread(path, cv::IMREAD_UNCHANGED);
+    
+    if (src.empty())
+        throw std::runtime_error("Failed to load image");
+
+    cv::Mat img;
+    bool isHDR = false;
+
+    if (src.depth() == CV_8U)
+    {
+        src.convertTo(img, CV_32F, 1.0 / 255.0);
+        cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
+        cv::flip(img, img, 0);
+    }
+    else if (src.depth() == CV_16U)
+    {
+        isHDR = true;
+        src.convertTo(img, CV_32F, 1.0 / 65535.0);
+        cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
+        cv::flip(img, img, 0);
+    }
+    else
+    {
+        isHDR = true;
+        src.convertTo(img, CV_32F);
+        cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
+        cv::flip(img, img, 0);
     }
 
-    img.convertTo(img, CV_32FC3, 1.0 / 255.0);
-    cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
-    cv::flip(img, img, 0);
+    
 
+    if (!img.isContinuous()) img = img.clone();
 
     glBindTexture(GL_TEXTURE_2D, textureID);
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, img.cols, img.rows, 0, GL_RGB, GL_FLOAT, img.data);
-    glBindTexture(GL_TEXTURE_2D, 0);
 
-    img.release();
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    if (!isHDR)
+    {
+        std::wstring msg = L"This image is not HDR:  " + std::wstring(path.begin(), path.end()) + L"\n";
+        OutputDebugStringW(msg.c_str());
+        cv::Mat upload;
+        img.convertTo(upload, CV_8UC3, 255.0f);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, upload.cols, upload.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, upload.data);
+    }
+    else
+    {
+        std::wstring msg = L"This image IS HDR:  " + std::wstring(path.begin(), path.end()) + L"\n";
+        OutputDebugStringW(msg.c_str());
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, img.cols, img.rows, 0, GL_RGB, GL_FLOAT, img.data);
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
+
 /// <summary>
 /// Update variables within the local flicker shader texture
 /// </summary>
