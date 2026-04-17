@@ -62,7 +62,6 @@ namespace Utils
 
 	static float fovealRadiusFromPixelsPerDegree(float pixPerDeg, float fovalWidthDeg) {
 		return pixPerDeg * fovalWidthDeg; 
-
 	}
 	// randomize a local quad location and size for local flicker
 	static std::tuple<float, float, float, float> randomizeQuad(int screenWidth, int screenHeight)
