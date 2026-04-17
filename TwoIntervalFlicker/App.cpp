@@ -162,6 +162,7 @@ App::~App() {
     if (m_quadVBO) glDeleteBuffers(1, &m_quadVBO);
     if (m_crosshairVAO) glDeleteVertexArrays(1, &m_crosshairVAO);
     if (m_crosshairVBO) glDeleteBuffers(1, &m_crosshairVBO);
+
     glfwDestroyWindow(m_window);
     glfwTerminate();
 }
@@ -190,6 +191,8 @@ bool App::loadShaders() {
     else if (m_variant == 2) {
         if (!m_localShader.load(VERT_SRC, LOCAL_FRAG_SRC)) return false;
     }
+
+    return true;
 }
 
 void App::initWindow() {
@@ -224,6 +227,7 @@ void App::initWindow() {
 void App::initGame() {
     m_trialIndex = 0;
     m_phase = (m_config.trials[0].flickerIndex == 0) ? TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
+    m_phaseStart = glfwGetTime();
 }
 
 bool App::init(const std::string& configPath) {
@@ -302,7 +306,6 @@ bool App::init(const std::string& configPath) {
 
     //init phase
     m_phase = TrialPhase::StartInstructions;
-    initGame();
     m_phaseStart = glfwGetTime();
     return true;
 }
@@ -522,14 +525,13 @@ void App::advancePhase() {
     if (m_phase == TrialPhase::ShowOriginal) {
         if (m_config.trials[m_trialIndex].flickerIndex == 0) { // this is the second image shown, wait for response is next
             m_phase = TrialPhase::WaitForResponse;
-
-            //load the next 2 images (L, R) in the trial
+            
             if ((m_trialIndex + 1) < m_config.trials.size()) { 
                 if (m_variant == 2) { // update local flicker upon start of new trial
                     updateLocalFlickerShader();
-                }
-
-                loadTextures(m_config.trials[m_trialIndex + 1]); 
+                }   
+                //load the next 2 images (L, R) in the trial
+                loadTextures(m_config.trials[m_trialIndex + 1]);
             }
         }
         else { // this is the first image, show wait screen next
@@ -537,9 +539,9 @@ void App::advancePhase() {
         }
     }
     else if (m_phase == TrialPhase::ShowWaitScreen) {
+       
         if (m_config.trials[m_trialIndex].flickerIndex == 0) { // flicker has already happened, next phase is show original
             m_phase = TrialPhase::ShowOriginal;
-            
         }
         else { // flicker is next to happen
             m_phase = TrialPhase::ShowFlicker;  
@@ -552,21 +554,19 @@ void App::advancePhase() {
         }
         else { // this is the second image shown, wait for response is next
             m_phase = TrialPhase::WaitForResponse;
-
-            //load the next 2 images (L, R) in the trial
             if ((m_trialIndex + 1) < m_config.trials.size()) {
 
                 if (m_variant == 2) { // update local flicker upon start of new trial
                     updateLocalFlickerShader();
                 }
-
+                //load the next 2 images (L, R) in the trial
                 loadTextures(m_config.trials[m_trialIndex + 1]);
             }
-        }
 
-        
+        } 
     }
-    m_phaseStart , m_responseStart = glfwGetTime();
+    m_phaseStart = glfwGetTime();
+    m_responseStart = m_phaseStart;
 }
 
 void App::recordResponse(int key) {
@@ -602,13 +602,13 @@ void App::recordResponse(int key) {
     std::vector<std::string> resultRow = {std::to_string(result.index), result.imageName, result.viewingMode, std::to_string(result.answer), std::to_string(result.actual), std::to_string(result.reactionTime)};
     m_csv.writeRow(resultRow);
     m_trialIndex++;
+
     if (m_trialIndex >= static_cast<int>(m_config.trials.size())) {
         m_phase = TrialPhase::Done;
     }
     else {
         m_phase =  (m_config.trials[m_trialIndex].flickerIndex) == 0 ? TrialPhase::ShowFlicker : TrialPhase::ShowOriginal;
         m_phaseStart = glfwGetTime();
-        loadTextures(m_config.trials[m_trialIndex]);
     }
 }
 
@@ -671,12 +671,11 @@ void App::loadTexture(const std::string& path, GLuint textureID) {
         Utils::FatalError("[App] Failed to load image: " + path);
         return;
     }
-    float scale = (img.depth() == CV_16U) ? 1.0f / 65535.0f : 1.0f / 255.0f; // scale image if it is 16 bits
-    img.convertTo(img, CV_32FC3, scale);
+
+    img.convertTo(img, CV_32FC3, 1.0 / 255.0);
     cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
     cv::flip(img, img, 0);
 
-    GLint internalFormat = (img.depth() == CV_16U) ? GL_RGB16F : GL_RGB8;
 
     glBindTexture(GL_TEXTURE_2D, textureID);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -684,8 +683,10 @@ void App::loadTexture(const std::string& path, GLuint textureID) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, img.cols, img.rows, 0, GL_RGB, GL_FLOAT, img.data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, img.cols, img.rows, 0, GL_RGB, GL_FLOAT, img.data);
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    img.release();
 }
 /// <summary>
 /// Update variables within the local flicker shader texture
@@ -754,7 +755,9 @@ void App::keyCallback(GLFWwindow* window, int key, int scancode, int action, int
     {
         if (app->m_phase == TrialPhase::StartInstructions)
         {
-            app->m_phaseStart = glfwGetTime();
+            app->initGame();
+            GLuint textures[] = {app->m_texStart_L,  app->m_texStart_R }; // delete start textures. not needed anymore.
+            glDeleteTextures(2, textures);
         }
     }
 

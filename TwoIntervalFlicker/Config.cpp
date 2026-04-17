@@ -43,7 +43,7 @@ bool Config::load(const std::string& configPath) {
     }
     
     if (j.contains("Foveal Width (degrees)")) {
-        imageTime = j["Foveal Width (degrees)"].get<float>();
+        fovealWidth = j["Foveal Width (degrees)"].get<float>();
     }
     if (j.contains("Pixels/Degree")) {
         pixelsPerDegree = j["Pixels/Degree"].get<float>();
