@@ -33,6 +33,8 @@ public:
     App(int variant);
     ~App();
 
+    
+
     bool init(const std::string& configPath);
     void run();
 
@@ -104,8 +106,11 @@ private:
     bool initCrosshair();
     void advancePhase();
     void loadInstructionsTextures(); // load the response screen and instructions
-
+    void initGame();
+    void updateFixationShader();
     void loadTextures(const ImagePaths paths);
+    bool loadShaders();
+    void initWindow();
     void loadTexture(const std::string& path, GLuint textureID);
     void renderTexture(GLuint texL, GLuint texR);
     void renderFovealTexture(GLuint texL, GLuint texR);
@@ -114,5 +119,8 @@ private:
     void recordResponse(int key);
 
     static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
+    void updateLocalFlickerShader();
+    void updateImageShader();
+    void updateFovealFlickerShader();
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 };
