@@ -95,6 +95,11 @@ private:
     Shader m_fovealShader;
     Shader m_localShader;
 
+    //GLPBO m_pboOrig_L
+    //m_pboOrig_R
+    //m_pboDec_L
+    //m_pboDec_R
+
     CSV m_csv;
 
     void update();
